@@ -1,0 +1,9 @@
+chain_name,wrapped_native_token_address,native_symbol,notes
+arbitrum,0x82af49447d8a07e3bd95bd0d56f35241523fbab1,WETH,Wrapped ETH on Arbitrum
+gnosis,0xe91d153e0b41518a2ce8dd3d7944fa863463a97d,WXDAI,Wrapped xDAI on Gnosis
+mantle,0x78c1b0c915c4faa5fffa6cabf0219da63d7f4cb8,WMNT,Wrapped MNT on Mantle
+kaia,0x19aac5f612f524b754ca7e7c41cbfa2e981a4432,WKAIA,Wrapped KAIA on Kaia
+bob,0x4200000000000000000000000000000000000006,WETH,Wrapped ETH on BOB
+apechain,0x48b62137edfa95a428d35c09e44256a739f6b557,WAPE,Wrapped APE on ApeChain
+megaeth,0x4200000000000000000000000000000000000006,WETH,Wrapped ETH on MegaETH
+sophon,,WETH,No wrapped token mapping available yet for Sophon

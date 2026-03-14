@@ -1,0 +1,7 @@
+lifi:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "../lifi.duckdb"
+      threads: 4

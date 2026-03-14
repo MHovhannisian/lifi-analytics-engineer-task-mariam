@@ -1,0 +1,16 @@
+token_address,symbol,decimals,notes
+0xaf88d065e77c8cc2239327c5edb3a432268e5831,USDC,6,USDC on Arbitrum
+0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9,USDT,6,USDT on Arbitrum
+0xff970a61a04b1ca14834a43f5de4533ebddb5cc8,USDC.e,6,Bridged USDC on Arbitrum
+0x82af49447d8a07e3bd95bd0d56f35241523fbab1,WETH,18,Wrapped ETH on Arbitrum
+0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f,WBTC,8,Wrapped BTC on Arbitrum
+0x2a22f9c3b484c3629090feed35f17ff8f88f76f0,USDC,6,USDC on Gnosis
+0xe91d153e0b41518a2ce8dd3d7944fa863463a97d,WXDAI,18,Wrapped xDAI on Gnosis
+0x6a023ccd1ff6f2045c3309768ead9e68f978f6e1,WETH,18,Wrapped ETH on Gnosis
+0x4ecaba5870353805a9f068101a40e0f32ed605c6,USDT,6,USDT on Gnosis
+0x09bc4e0d864854c6afb6eb9a9cdf58ac190d0df9,USDT,6,USDT on Mantle
+0x78c1b0c915c4faa5fffa6cabf0219da63d7f4cb8,WMNT,18,Wrapped MNT on Mantle
+0xeb466342c4d449bc9f53a865d5cb90586f405215,axlUSDC,6,Axelar USDC (Mantle and Arbitrum)
+0x4200000000000000000000000000000000000006,WETH,18,Wrapped ETH (BOB and MegaETH)
+0x48b62137edfa95a428d35c09e44256a739f6b557,WAPE,18,Wrapped APE on ApeChain
+0x19aac5f612f524b754ca7e7c41cbfa2e981a4432,WKAIA,18,Wrapped KAIA on Kaia

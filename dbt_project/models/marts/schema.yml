@@ -1,0 +1,140 @@
+version: 2
+
+models:
+  - name: fct_transfers_enriched
+    description: >
+      Core analytical fact table. One row per bridge transfer event, enriched
+      with USD and EUR volumes, token prices, exchange rates, and the Crypto
+      Fear & Greed Index. This is the primary model for ad-hoc analysis and
+      the source for all aggregation marts.
+
+      Volume fields are NULL (not zero) when price data is unavailable —
+      this is intentional. A warn-severity test tracks the null rate.
+      Missing prices are expected for tokens on newer chains (sophon, megaeth)
+      not yet covered by CoinGecko.
+    columns:
+      - name: tx_hash
+        description: Transaction hash.
+        tests:
+          - not_null
+
+      - name: log_index
+        description: Log index. Together with tx_hash, uniquely identifies a transfer event.
+        tests:
+          - not_null
+
+      - name: block_time
+        description: Exact timestamp of the transfer event.
+        tests:
+          - not_null
+
+      - name: block_date
+        description: Date of the transfer. Used as the join key to daily price and rate tables.
+        tests:
+          - not_null
+
+      - name: source_chain
+        description: Name of the source chain.
+        tests:
+          - not_null
+
+      - name: bridge_name
+        description: Bridge protocol used to move funds.
+        tests:
+          - not_null
+
+      - name: sending_asset_id
+        description: Normalized token address (zero-address replaced with wrapped native token).
+        tests:
+          - not_null
+
+      - name: is_native_token
+        description: True if the transferred token was the chain's native asset.
+        tests:
+          - not_null
+
+      - name: amount_raw
+        description: Raw on-chain integer amount before decimal conversion.
+
+      - name: amount_adjusted
+        description: >
+          Human-readable token amount after dividing by 10^decimals.
+          NULL if price data (and therefore decimals) is unavailable.
+
+      - name: volume_usd
+        description: >
+          Transfer volume in USD. NULL when price data is unavailable.
+          Tracked by a warn-severity test — NULLs are expected for
+          tokens on chains not covered by CoinGecko.
+        tests:
+          - not_null:
+              config:
+                severity: warn
+
+      - name: volume_eur
+        description: Transfer volume in EUR (volume_usd * usd_to_eur). NULL if either is NULL.
+
+      - name: fear_greed_score
+        description: Crypto Fear & Greed score on the day of this transfer (0=Fear, 100=Greed).
+
+      - name: fear_greed_label
+        description: Human-readable Fear & Greed classification for this transfer's date.
+
+  - name: agg_daily_volume_by_chain
+    description: >
+      Daily bridging volume aggregated by source chain. Use this model for
+      chain-level trend analysis, market share reporting, and time-series
+      charts of bridging activity per network.
+    columns:
+      - name: source_chain
+        description: Source chain name.
+        tests:
+          - not_null
+      - name: block_date
+        description: Date of the aggregation.
+        tests:
+          - not_null
+      - name: transfer_count
+        description: Total number of transfer events on this chain and date.
+        tests:
+          - not_null
+      - name: total_volume_usd
+        description: Total bridging volume in USD on this chain and date.
+      - name: total_volume_eur
+        description: Total bridging volume in EUR on this chain and date.
+
+  - name: agg_daily_volume_by_bridge
+    description: >
+      Daily bridging volume aggregated by bridge protocol. Use this model
+      to track bridge usage trends and protocol market share over time.
+    columns:
+      - name: bridge_name
+        description: Bridge protocol name.
+        tests:
+          - not_null
+      - name: block_date
+        description: Date of the aggregation.
+        tests:
+          - not_null
+      - name: transfer_count
+        description: Number of transfers via this bridge on this date.
+        tests:
+          - not_null
+
+  - name: agg_daily_volume_by_integrator
+    description: >
+      Daily bridging volume aggregated by integrator frontend. Use this model
+      to evaluate partner and integrator contribution to total LI.FI volume.
+    columns:
+      - name: integrator
+        description: Integrator frontend name (e.g. jumper.exchange, rabbykms).
+        tests:
+          - not_null
+      - name: block_date
+        description: Date of the aggregation.
+        tests:
+          - not_null
+      - name: transfer_count
+        description: Number of transfers from this integrator on this date.
+        tests:
+          - not_null

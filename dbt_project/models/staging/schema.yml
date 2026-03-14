@@ -1,0 +1,145 @@
+version: 2
+
+models:
+  - name: stg_transfers
+    description: >
+      Cleaned and unpacked LiFi bridge transfer events. One row per transfer event.
+      The bridgeData JSON has been fully unpacked into typed columns. The zero-address
+      sendingAssetId (used for native tokens) has been replaced with the chain's
+      wrapped native token address so price joins work downstream.
+    columns:
+      - name: tx_hash
+        description: Transaction hash of the bridge transfer.
+        tests:
+          - not_null
+
+      - name: log_index
+        description: Log index within the block. Combined with tx_hash forms the unique key.
+        tests:
+          - not_null
+
+      - name: block_time
+        description: Exact timestamp of the block containing this transfer event.
+        tests:
+          - not_null
+
+      - name: block_date
+        description: Date of the block. Used as the join key to daily price and rate tables.
+        tests:
+          - not_null
+
+      - name: source_chain
+        description: Name of the source chain (e.g. arbitrum, gnosis, mantle).
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['arbitrum', 'gnosis', 'mantle', 'megaeth', 'apechain', 'bob', 'sophon', 'kaia', 'stable']
+
+      - name: sending_asset_id
+        description: >
+          Normalized token address on the source chain. Zero-address has been
+          replaced with the wrapped native token address for this chain.
+        tests:
+          - not_null
+
+      - name: sending_asset_id_raw
+        description: Original sendingAssetId from bridgeData, kept for auditability.
+
+      - name: is_native_token
+        description: True if this transfer used the chain's native token (ETH, xDAI, etc.).
+        tests:
+          - not_null
+
+      - name: amount_raw
+        description: >
+          Raw integer token amount as stored on-chain. Must be divided by
+          10^decimals to get the human-readable amount. For example,
+          1 ETH is stored as 1000000000000000000 (18 decimals).
+
+      - name: bridge_name
+        description: Bridge protocol used (e.g. stargateV2, across, near, gasZipBridge).
+        tests:
+          - not_null
+
+      - name: integrator
+        description: Frontend application that routed this transfer (e.g. jumper.exchange).
+
+      - name: destination_chain_id
+        description: EVM chain ID of the destination chain.
+
+      - name: lifi_transaction_id
+        description: LI.FI's internal unique identifier for the transfer.
+
+  - name: stg_token_prices
+    description: >
+      Daily USD prices per token per chain from CoinGecko. Native tokens are stored
+      under their wrapped token address (e.g. ETH → WETH address) to enable joins
+      with stg_transfers. Includes token decimals for amount conversion in the mart.
+    columns:
+      - name: chain
+        description: Chain name.
+        tests:
+          - not_null
+
+      - name: token_address
+        description: Token contract address (normalized, lowercase).
+        tests:
+          - not_null
+
+      - name: price_date
+        description: Date of the price observation.
+        tests:
+          - not_null
+
+      - name: price_usd
+        description: Token price in USD.
+        tests:
+          - not_null
+
+      - name: decimals
+        description: >
+          Token decimal places. Used to convert raw integer amounts to
+          human-readable values (amount_raw / 10^decimals). Defaults to 18
+          if not found in the token_decimals seed.
+        tests:
+          - not_null
+
+  - name: stg_eur_rates
+    description: >
+      Daily USD to EUR exchange rates from the ECB. The usd_to_eur field
+      can be directly multiplied against USD volumes to convert to EUR.
+    columns:
+      - name: rate_date
+        description: Date of the exchange rate.
+        tests:
+          - not_null
+          - unique
+
+      - name: usd_to_eur
+        description: EUR per 1 USD. Multiply USD volume by this to get EUR volume.
+        tests:
+          - not_null
+
+  - name: stg_fear_greed
+    description: >
+      Daily Crypto Fear & Greed Index. Score from 0 (Extreme Fear) to
+      100 (Extreme Greed). Joined to transfers on block_date in the mart
+      to enable sentiment-based analysis of bridging behaviour.
+    columns:
+      - name: fear_greed_date
+        description: Date of the observation.
+        tests:
+          - not_null
+          - unique
+
+      - name: fear_greed_score
+        description: Numeric score from 0 to 100.
+        tests:
+          - not_null
+
+      - name: fear_greed_label
+        description: Human-readable classification of the score.
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Extreme Fear', 'Fear', 'Neutral', 'Greed', 'Extreme Greed']

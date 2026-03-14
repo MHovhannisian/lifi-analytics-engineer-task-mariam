@@ -1,0 +1,84 @@
+version: 2
+
+sources:
+  - name: raw
+    description: >
+      Raw tables loaded directly from source data into DuckDB by the
+      ingestion scripts in /ingestion. These tables are never modified
+      after ingestion — they serve as the immutable audit trail.
+    schema: main
+    tables:
+      - name: raw_transfers
+        description: >
+          On-chain LiFi bridge transfer events emitted by the LiFiDiamond
+          contract, sourced from Dune Analytics. Each row is one transfer
+          event. The bridgeData column is a packed JSON string that must
+          be unpacked in the staging layer.
+        columns:
+          - name: evt_tx_hash
+            description: Transaction hash. Combined with evt_index, uniquely identifies a transfer event.
+          - name: evt_index
+            description: Log index within the block. Used with evt_tx_hash as a composite unique key.
+          - name: evt_block_time
+            description: Exact timestamp of the block containing this event.
+          - name: evt_block_date
+            description: Date of the block (truncated from evt_block_time).
+          - name: evt_block_number
+            description: Block number on the source chain.
+          - name: chain
+            description: Source chain name (e.g. arbitrum, gnosis, mantle).
+          - name: contract_address
+            description: Address of the LiFiDiamond contract on the source chain.
+          - name: evt_tx_from
+            description: Wallet address that initiated the transaction.
+          - name: evt_tx_to
+            description: Address the transaction was sent to.
+          - name: evt_tx_index
+            description: Index of this transaction within the block.
+          - name: bridgeData
+            description: >
+              Packed JSON containing core transfer details: transactionId,
+              bridge, integrator, referrer, sendingAssetId, receiver,
+              minAmount, destinationChainId, hasSourceSwaps, hasDestinationCall.
+
+      - name: raw_token_prices
+        description: >
+          Daily USD prices per token per chain, fetched from the CoinGecko
+          API by ingestion/fetch_prices.py. Native tokens (zero-address)
+          are stored under their wrapped token address.
+        columns:
+          - name: chain
+            description: Chain name matching the transfers table.
+          - name: token_address
+            description: Token contract address (normalized, lowercase). Native tokens stored as wrapped address.
+          - name: raw_address
+            description: Original address as it appeared in bridgeData (may be zero-address for native tokens).
+          - name: price_date
+            description: Date of the price observation.
+          - name: price_usd
+            description: Token price in USD on this date.
+
+      - name: raw_eur_rates
+        description: >
+          Daily USD to EUR exchange rates from the European Central Bank (ECB)
+          free API. Used to convert USD volumes to EUR in the mart layer.
+        columns:
+          - name: rate_date
+            description: Date of the exchange rate observation.
+          - name: eur_usd_rate
+            description: USD per 1 EUR (ECB convention).
+          - name: usd_to_eur
+            description: EUR per 1 USD (1 / eur_usd_rate). Multiply against USD volumes to get EUR volumes.
+
+      - name: raw_fear_greed
+        description: >
+          Daily Crypto Fear & Greed Index from alternative.me. Score ranges
+          from 0 (Extreme Fear) to 100 (Extreme Greed). Used as an
+          enrichment dimension to correlate bridging volume with market sentiment.
+        columns:
+          - name: date
+            description: Date of the observation.
+          - name: value
+            description: Fear & Greed score (0 = Extreme Fear, 100 = Extreme Greed).
+          - name: value_classification
+            description: Human-readable label (Extreme Fear, Fear, Neutral, Greed, Extreme Greed).
