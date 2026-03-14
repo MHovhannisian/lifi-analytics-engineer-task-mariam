@@ -1,50 +1,196 @@
-# LI.FI Analytics Engineer - Take-Home Assessment
+# LI.FI Analytics Engineer — Take-Home Assessment
 
-Welcome! This assessment consists of three connected tasks that progressively build on each other. You are expected to spend approximately **4–6 hours** in total. We value clarity and thoughtfulness over completeness—if you run out of time, document what you would have done differently.
+## Overview
 
-Assume that the company's reporting currency is **EUR**.
+This repository contains my solution to the LI.FI Analytics Engineer take-home assessment.
+It consists of three connected tasks:
+
+1. **Task 1** — Analytical data model design (written doc + diagram)
+2. **Task 2** — Data ingestion pipeline into DuckDB
+3. **Task 3** — dbt transformation project with tests and documentation
+
+Reporting currency: **EUR**, as specified.
+
+---
+
+## Repository Structure
+
+```
+├── data/
+│   └── lifi_transfers_raw.csv       # ~20k on-chain bridge transfer events (provided)
+│
+├── ingestion/
+│   ├── ingest.py                    # Master script — runs all ingestion steps
+│   ├── load_transfers.py            # Loads CSV into DuckDB
+│   ├── fetch_prices.py              # Fetches token prices from CoinGecko API
+│   ├── fetch_eur_rates.py           # Fetches USD/EUR rates from ECB API
+│   └── fetch_fear_greed.py          # Fetches Crypto Fear & Greed Index (bonus)
+│
+├── dbt_project/
+│   ├── dbt_project.yml
+│   ├── profiles.yml                 # DuckDB connection config
+│   ├── models/
+│   │   ├── staging/                 # One model per source, cleans & types raw data
+│   │   │   ├── sources.yml
+│   │   │   ├── schema.yml
+│   │   │   ├── stg_transfers.sql
+│   │   │   ├── stg_token_prices.sql
+│   │   │   ├── stg_eur_rates.sql
+│   │   │   └── stg_fear_greed.sql
+│   │   └── marts/                   # Business-level models with volumes in USD & EUR
+│   │       ├── schema.yml
+│   │       ├── fct_transfers_enriched.sql
+│   │       ├── agg_daily_volume_by_chain.sql
+│   │       ├── agg_daily_volume_by_bridge.sql
+│   │       └── agg_daily_volume_by_integrator.sql
+│   └── seeds/
+│       ├── chain_native_tokens.csv  # Maps chain names to wrapped native token addresses
+│       └── token_decimals.csv       # Maps token addresses to decimal places
+│
+└── task_1/
+    └── README.md                    # Data model design document + diagram
+```
+
+---
+
+## Quickstart
+
+### Prerequisites
+
+- Python 3.11
+- Git
+
+### 1. Clone the repo
+
+```bash
+git clone https://github.com/MHovhannisian/lifi-analytics-engineer-task-mariam.git
+cd lifi-analytics-engineer-task-mariam
+```
+
+### 2. Create and activate a virtual environment
+
+```bash
+# Create venv with Python 3.11 (required — newer versions have dependency conflicts)
+py -3.11 -m venv .venv
+
+# Mac/Linux
+source .venv/bin/activate
+
+# Windows
+.venv\Scripts\activate
+```
+
+### 3. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Run ingestion
+
+Loads all data sources into `lifi.duckdb`:
+
+```bash
+python ingestion/ingest.py
+```
+
+This runs four steps in sequence:
+- Loads `lifi_transfers_raw.csv` into `raw_transfers`
+- Fetches token prices from CoinGecko → `raw_token_prices`
+- Fetches USD/EUR exchange rates from ECB → `raw_eur_rates`
+- Fetches Crypto Fear & Greed Index → `raw_fear_greed` (bonus)
+
+> **Note:** The price fetch step calls the CoinGecko free API with a 1.5s
+> delay between requests to respect rate limits. It takes a few minutes to complete.
+
+### 5. Run dbt
+
+```bash
+cd dbt_project
+dbt seed    # Load chain and token reference data
+dbt run     # Build all models
+dbt test    # Run 40 data quality tests
+```
+
+Expected result: **39 PASS, 1 WARN, 0 ERROR**
+
+The single warning (`not_null_fct_transfers_enriched_volume_usd`) is intentional —
+19,303 transfers have NULL volumes because their tokens are on newer chains
+(sophon, megaeth, apechain, kaia, bob) not yet covered by CoinGecko.
+These rows are kept deliberately rather than dropped, and the warn-severity
+test tracks the coverage gap over time.
+
+---
 
 ## Data Sources
 
-1. **LiFi Transfer Events (on-chain, per-block)**
-   * **Source:** Dune Analytics (`lifi_multichain.LiFiDiamond_v2_evt_LiFiTransferStarted`)
-   * *Fallback provided:* To save you time and prevent Dune API rate limits, we have provided a sample of ~20k rows in the `/data` folder. You can use this directly.
-   * *Consideration:* The `sendingAssetId` field uses a zero-address (`0x000...000`) as a placeholder for native tokens (ETH, MATIC, etc.). Think about what this means for downstream joins.
-
-2. **Token Prices in USD**
-   * **Source:** Dune Analytics (`prices.usd`) or any free API (CoinGecko, etc.)
-   * You must source this data yourself. Automating the extraction via an API is a **huge plus**, but if you hit rate limits, you can download it manually and place it in the `/data` folder.
-
-3. **External Source [BONUS]**
-   * **Source:** E.g., Crypto Fear & Greed Index API (https://api.alternative.me/fng/?limit=0)
-   * This is an optional bonus dataset. Focus on the core transfers and prices first.
+| Source | Method | Table |
+|---|---|---|
+| LiFi transfer events | CSV (provided) | `raw_transfers` |
+| Token prices in USD | CoinGecko free API | `raw_token_prices` |
+| USD/EUR exchange rates | ECB free API | `raw_eur_rates` |
+| Crypto Fear & Greed Index | alternative.me free API (bonus) | `raw_fear_greed` |
 
 ---
 
-## Task 1: Data Model Design
-**Deliverable:** A written description + a simple diagram in the `/task_1` folder.
+## Key Design Decisions
 
-Propose an analytical data model structure suitable for a transformation tool like dbt or SQLMesh.
-* **Layering:** How would you organize your layers?
-* **Grain & Joins:** How do transfers connect to prices?
-* **Currency:** How would you approach EUR conversion?
+### Zero-address handling
+When `sendingAssetId` is `0x000...000`, the token is the chain's native asset
+(ETH on Arbitrum, xDAI on Gnosis, etc.). This address has no price data in
+CoinGecko, so it is mapped to the chain's wrapped native token address
+(WETH, WXDAI, etc.) via the `chain_native_tokens` seed before joining with prices.
 
-## Task 2: Data Ingestion
-**Deliverable:** Working scripts in the `/ingestion` folder.
+### Raw token amounts
+On-chain token amounts are stored as integers without decimal points
+(e.g. 1 ETH = `1000000000000000000`). The `fct_transfers_enriched` model
+divides by `10^decimals` to produce human-readable amounts. Decimal metadata
+is sourced from the `token_decimals` seed and defaults to 18 (EVM standard)
+for unknown tokens.
 
-Load the data sources into a local **DuckDB** database. 
-* DuckDB can natively read CSVs. You don't need a complex pipeline; a simple Python script or COPY statements work fine. The goal is to get clean, queryable tables.
+### LEFT JOINs on prices
+Transfers are LEFT JOINed to prices — not INNER JOINed. This keeps all
+20,000 transfers in the fact table and makes missing price coverage visible
+via NULL volumes, rather than silently dropping rows.
 
-## Task 3: Transformation Project
-**Deliverable:** A working dbt or SQLMesh project in the `/dbt_project` folder.
+### EUR conversion
+Each transfer uses the ECB exchange rate from its own date, not a static rate.
+This ensures accurate historical EUR reporting. ECB weekend/holiday gaps are
+handled by the staging model.
 
-Transform the raw data into an analytical model.
-* **Staging:** Clean and type-cast. The `bridgeData` JSON column needs to be unpacked.
-* **Marts:** Join transfers with prices, calculate volumes (remembering crypto nuances).
-* **Tests & Docs:** Define meaningful tests and descriptions.
+### Chain name → Chain ID mapping
+The transfers table uses chain names (`arbitrum`, `gnosis`) while price APIs
+use numeric EVM chain IDs. A `chain_native_tokens` seed handles this mapping.
 
 ---
 
-## Submission
-Please submit your work as a Git repository (GitHub/GitLab link or a zip archive). 
-If you use AI assistants, that's perfectly fine—just be ready to explain and defend every design decision during the walkthrough session!
+## dbt Models
+
+### Staging (materialized as views)
+| Model | Description |
+|---|---|
+| `stg_transfers` | Cleans and unpacks raw transfer events; resolves zero-address |
+| `stg_token_prices` | Cleans price data; joins token decimals |
+| `stg_eur_rates` | Cleans ECB exchange rates |
+| `stg_fear_greed` | Cleans Fear & Greed Index |
+
+### Marts (materialized as tables)
+| Model | Grain | Description |
+|---|---|---|
+| `fct_transfers_enriched` | One row per transfer | Core fact table with USD & EUR volumes |
+| `agg_daily_volume_by_chain` | Chain + date | Daily volume per source chain |
+| `agg_daily_volume_by_bridge` | Bridge + date | Daily volume per bridge protocol |
+| `agg_daily_volume_by_integrator` | Integrator + date | Daily volume per frontend integrator |
+
+---
+
+## Test Results
+
+```
+dbt test
+→ 39 PASS | 1 WARN | 0 ERROR | 40 TOTAL
+```
+
+Tests cover: uniqueness, not-null constraints, accepted values,
+referential integrity, and business logic (non-negative amounts).
+The single warning tracks NULL volume coverage as a data quality metric.
